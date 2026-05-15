@@ -1,6 +1,7 @@
+local _ = require("gettext")
 return {
-    name = "skyq_remote",
-    fullname = "Sky Q Remote",
-    description = "lol very ai generated",
-    is_Core = false,
+    name = "skyremote",
+    title = _("Sky Q Advanced Remote"),
+    description = _("Control your TV over Wi-Fi."),
+    type = "input",
 }
