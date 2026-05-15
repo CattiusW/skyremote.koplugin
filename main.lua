@@ -118,12 +118,15 @@ function SkyQRemotePlugin:configureIP()
             {
                 text = "Save", id = "save", is_default = true,
                 action = function()
-                    local new_ip = input_dialog:getFields()
+                    local fields = input_dialog:getFields()
+                    -- FIX: Access the first input array element directly instead of a text value property
+                    local new_ip = fields and fields[1]
                     if new_ip and new_ip ~= "" then
                         self.box_ip = new_ip
                         G_reader_settings:saveSetting("skyq_box_ip", new_ip)
-                        UIManager:close(input_dialog)
+                        G_reader_settings:flush()
                     end
+                    UIManager:close(input_dialog)
                 end
             }
         }
