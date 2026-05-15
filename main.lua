@@ -16,6 +16,8 @@ local SkyQRemotePlugin = WidgetContainer:extend{
 }
 
 function SkyQRemotePlugin:init()
+    -- FIX: Native KOReader object lifecycle base initialization mandatory requirement
+    WidgetContainer.init(self)
     self.box_ip = G_reader_settings:readSetting("skyq_box_ip") or ""
     self:addToMainMenu()
 end
@@ -45,9 +47,13 @@ end
 local SkyQRemoteWindow = InputContainer:extend{
     align = "center",
     valign = "center",
+    is_popout = true, -- FIX: Prevents underlying background screen artifacts from corrupting panel redraws
 }
 
 function SkyQRemoteWindow:init()
+    -- FIX: InputContainer initialization setup prevents application execution failure loops
+    InputContainer.init(self)
+    
     local function makeButton(label, cmd_key, width_ratio)
         return Button:new{
             text = label,
@@ -61,17 +67,14 @@ function SkyQRemoteWindow:init()
 
     local layout = VerticalGroup:new{
         align = "center",
-        -- Top Row: Core Application and Base Navigation Entry Shortcuts
         HorizontalGroup:new{
             makeButton("APPS ", "apps", 0.24),
             makeButton("HOME", "home", 0.24),
             makeButton("BACK", "dismiss", 0.24),
         },
-        -- Power Management Line Block
         HorizontalGroup:new{
             makeButton("⏻ POWER TOGGLE", "power", 0.76)
         },
-        -- Structural D-Pad Hub Controls
         HorizontalGroup:new{ makeButton("▲ UP", "up") },
         HorizontalGroup:new{
             makeButton("◀ LEFT", "left"),
@@ -79,13 +82,11 @@ function SkyQRemoteWindow:init()
             makeButton("RIGHT ▶", "right"),
         },
         HorizontalGroup:new{ makeButton("▼ DOWN", "down") },
-        -- Media Streaming Control Playback Scrubber Row
         HorizontalGroup:new{
             makeButton("REW", "rewind", 0.22),
             makeButton("PLAY", "play", 0.32),
             makeButton("FFW", "fast_fwd", 0.22),
         },
-        -- Quick Dismiss Modal Link Element
         HorizontalGroup:new{
             Button:new{
                 text = "✕ CLOSE PANEL",
@@ -96,8 +97,10 @@ function SkyQRemoteWindow:init()
             }
         }
     }
-    -- FIXED: Injects layout into widget hierarchy correctly instead of destroying self instance
+    
     self:setChild(layout)
+    -- FIX: Forces the wrapper module dimension footprints to accurately wrap layout geometries
+    self.dimen = layout:getSize()
 end
 
 function SkyQRemotePlugin:openRemotePanel()
@@ -120,12 +123,13 @@ function SkyQRemotePlugin:configureIP()
                 text = "Save", id = "save", is_default = true,
                 action = function()
                     local fields = input_dialog:getFields()
-                    -- FIXED: Accurately checks internal text fields table structure mapping to Lua components
-                    local new_ip = fields and fields[1]
-                    if new_ip and new_ip ~= "" then
-                        self.box_ip = new_ip
-                        G_reader_settings:saveSetting("skyq_box_ip", new_ip)
-                        G_reader_settings:flush()
+                    -- FIX: Evaluates deep internal text instances using API value fetching models instead of reading direct table pointers
+                    if fields and fields[1] then
+                        local new_ip = fields[1]:getText()
+                        if new_ip and new_ip ~= "" then
+                            self.box_ip = new_ip
+                            G_reader_settings:saveSetting("skyq_box_ip", new_ip)
+                        end
                     end
                     UIManager:close(input_dialog)
                 end
@@ -136,15 +140,13 @@ function SkyQRemotePlugin:configureIP()
 end
 
 function SkyQRemotePlugin:addToMainMenu()
-    -- FIXED: Changed self.ui.menu to UIManager.main_menu to comply with the global backend environment
-    UIManager.main_menu:registerWidget("skyq_remote_root", {
-        text = "Streaming Media Panel",
-        path = {"tools"},
-        sub_menu = {
-            { text = "Open Stream Controller UI", action = function() self:openRemotePanel() end },
-            { text = "Auto Scan for Sky Q Box", action = function() self:runAutodiscovery() end },
-            { text = "Manual IP Edit...", action = function() self:configureIP() end },
-        }
+    -- FIX: Direct injection workaround hook structure used to safely map entries into KOReader plugins sub-menu space
+    local Dispatcher = require("device/dispatcher")
+    Dispatcher:registerAction("skyq_remote_open", {
+        category = "tools",
+        title = "Streaming Media Panel",
+        event = "SkyQRemoteOpen",
+        callback = function() self:openRemotePanel() end,
     })
 end
 
