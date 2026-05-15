@@ -63,9 +63,9 @@ function SkyQRemoteWindow:init()
         align = "center",
         -- Top Row: Core Application and Base Navigation Entry Shortcuts
         HorizontalGroup:new{
-            makeButton("APPS 📱", "apps", 0.24),
-            makeButton("⌂ HOME", "home", 0.24),
-            makeButton("↩ BACK", "dismiss", 0.24),
+            makeButton("APPS ", "apps", 0.24),
+            makeButton("HOME", "home", 0.24),
+            makeButton("BACK", "dismiss", 0.24),
         },
         -- Power Management Line Block
         HorizontalGroup:new{
@@ -81,9 +81,9 @@ function SkyQRemoteWindow:init()
         HorizontalGroup:new{ makeButton("▼ DOWN", "down") },
         -- Media Streaming Control Playback Scrubber Row
         HorizontalGroup:new{
-            makeButton("⏪ REW", "rewind", 0.22),
-            makeButton("⏯ PLAY", "play", 0.32),
-            makeButton("FFW ⏩", "fast_fwd", 0.22),
+            makeButton("REW", "rewind", 0.22),
+            makeButton("PLAY", "play", 0.32),
+            makeButton("FFW", "fast_fwd", 0.22),
         },
         -- Quick Dismiss Modal Link Element
         HorizontalGroup:new{
@@ -141,9 +141,9 @@ function SkyQRemotePlugin:addToMainMenu()
         text = "Streaming Media Panel",
         path = {"tools"},
         sub_menu = {
-            { text = "📺 Open Stream Controller UI", action = function() self:openRemotePanel() end },
-            { text = "🔍 Auto Scan for Sky Q Box", action = function() self:runAutodiscovery() end },
-            { text = "⚙️ Manual IP Edit...", action = function() self:configureIP() end },
+            { text = "Open Stream Controller UI", action = function() self:openRemotePanel() end },
+            { text = "Auto Scan for Sky Q Box", action = function() self:runAutodiscovery() end },
+            { text = "Manual IP Edit...", action = function() self:configureIP() end },
         }
     })
 end
