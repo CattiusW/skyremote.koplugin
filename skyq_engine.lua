@@ -1,97 +1,111 @@
 local socket = require("socket")
 local SkyQEngine = {
-    ports = { 49160, 5900 },
+    ports = { 49160 },
     cached_ip = nil,
-    cache_timeout = 3600  -- Cache for 1 hour (in seconds)
+    cache_timeout = 3600
 }
 
--- Raw button commands strictly optimized for streaming platform navigation
+-- Mapped directly to your structural main.lua keys using corrected dual-phase byte arrays
 SkyQEngine.CMD = {
-    power    = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 2, 4),
-    home     = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 22),
-    dismiss  = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 23),
-    up       = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 1),
-    down     = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 2),
-    left     = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 3),
-    right    = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 4),
-    select   = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 21),
-    play     = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 11),
-    rewind   = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 15),
-    fast_fwd = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 14),
-    apps     = string.char(4, 1, 0, 0, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 1, 8), -- Direct Apps sidebar toggle
+    power    = string.char(0),
+    home     = string.char(1),
+    dismiss  = string.char(7), -- Acts as the hardware Back/Dismiss command layout
+    up       = string.char(2),
+    down     = string.char(3),
+    left     = string.char(4),
+    right    = string.char(5),
+    select   = string.char(6),
+    play     = string.char(64),
+    rewind   = string.char(66),
+    fast_fwd = string.char(67),
+    apps     = string.char(1),   -- Fallback to Home if native apps sidebar isn't supported via IP
 }
 
-function SkyQEngine.sendCommand(ip, command_bytes)
+function SkyQEngine.sendCommand(ip, command_byte)
     if not ip or ip == "" then return false, "No IP Specified" end
-    local tcp = socket.tcp()
-    tcp:settimeout(1.2)
+    if not command_byte or command_byte == "" then return false, "Invalid Command Key" end
     
-    for _, port in ipairs(SkyQEngine.ports) do
-        local success, err = tcp:connect(ip, port)
-        if success then
-            tcp:send(command_bytes)
-            tcp:close()
-            return true
-        end
+    local code = string.byte(command_byte)
+    local tcp = socket.tcp()
+    tcp:settimeout(1.5)
+    
+    local success, err = tcp:connect(ip, 49160)
+    if not success then
+        tcp:close()
+        return false, "Box Connection Timeout"
     end
+
+    -- Mandatory Handshake Sequence: Consume security buffers sent by the Sky Q hardware
+    local handshake1, h1_err = tcp:receive(12)
+    if not handshake1 then tcp:close() return false, "Handshake 1 Fail: " .. tostring(h1_err) end
+    
+    tcp:send("") -- Structural mirror acknowledgment pulse
+    
+    local handshake2, h2_err = tcp:receive(10)
+    if not handshake2 then tcp:close() return false, "Handshake 2 Fail: " .. tostring(h2_err) end
+
+    -- Phase 1: Transmit Key Down (Press Button) Packet Frame
+    local press_packet = string.char(3, 0, 0, 0, 1, 1, math.floor(code / 256), code % 256)
+    local _, p_err = tcp:send(press_packet)
+    if p_err then tcp:close() return false, "Press State Drop" end
+
+    -- Phase 2: Transmit Key Up (Release Button) Packet Frame
+    local release_packet = string.char(3, 0, 0, 0, 1, 0, math.floor(code / 256), code % 256)
+    local _, r_err = tcp:send(release_packet)
+    if r_err then tcp:close() return false, "Release State Drop" end
+
     tcp:close()
-    return false, "Box Unreachable"
+    return true
 end
 
--- Verify cached IP is still reachable
 function SkyQEngine.verifyCachedIP(ip)
-    if not ip then return false end
+    if not ip or ip == "" then return false end
     local tcp = socket.tcp()
-    tcp:settimeout(0.5)  -- Quick timeout for verification
-    
-    for _, port in ipairs(SkyQEngine.ports) do
-        local success = tcp:connect(ip, port)
-        tcp:close()
-        if success then return true end
-        tcp = socket.tcp()
-        tcp:settimeout(0.5)
-    end
+    tcp:settimeout(0.5)
+    local success = tcp:connect(ip, 49160)
     tcp:close()
-    return false
+    return success and true or false
 end
 
 function SkyQEngine.scanSubnet()
     local probe = socket.udp()
+    -- Non-routing query to safely capture local infrastructure gateway details
     probe:setpeername("8.8.8.8", 80)
     local local_ip = probe:getsockname()
     probe:close()
     if not local_ip then return nil, "Wi-Fi Disconnected" end
-    local prefix = local_ip:match("(%d+%.%d+%.%d+%.)")
     
+    local prefix = local_ip:match("(%d+%.%d+%.%d+%.)")
     local sockets = {}
+    
     for i = 1, 254 do
         local ip = prefix .. i
         local s = socket.tcp()
-        s:settimeout(0)
+        s:settimeout(0) -- Non-blocking instant state allocation loop
         s:connect(ip, 49160)
         sockets[ip] = s
     end
-    socket.select(nil, nil, 1.5)
+    
+    socket.select(nil, nil, 1.2) -- Allocation safety timeout window
+    
     for ip, s in pairs(sockets) do
         local res, err = s:connect(ip, 49160)
         s:close()
-        if res or err == "already connected" then return ip end
+        if res or err == "already connected" then 
+            return ip 
+        end
     end
-    return nil, "No Sky Q Box found"
+    return nil, "Sky Q Box missing from local subnet paths"
 end
 
--- Find Sky Q box with caching. Pass force=true to ignore cache and do full scan
 function SkyQEngine.findBox(force)
-    -- Try cached IP first if available and not forcing a new scan
     if not force and SkyQEngine.cached_ip then
         if SkyQEngine.verifyCachedIP(SkyQEngine.cached_ip) then
             return SkyQEngine.cached_ip, "cached"
         end
-        -- Cached IP is dead, clear it
         SkyQEngine.cached_ip = nil
     end
     
-    -- Do full subnet scan
     local ip, err = SkyQEngine.scanSubnet()
     if ip then
         SkyQEngine.cached_ip = ip
@@ -100,7 +114,6 @@ function SkyQEngine.findBox(force)
     return nil, err
 end
 
--- Clear cached IP manually (useful if user switches boxes)
 function SkyQEngine.clearCache()
     SkyQEngine.cached_ip = nil
 end
