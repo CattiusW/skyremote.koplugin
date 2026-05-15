@@ -1,6 +1,8 @@
 local socket = require("socket")
 local SkyQEngine = {
-    ports = { 49160, 5900 }
+    ports = { 49160, 5900 },
+    cached_ip = nil,
+    cache_timeout = 3600  -- Cache for 1 hour (in seconds)
 }
 
 -- Raw button commands strictly optimized for streaming platform navigation
@@ -36,6 +38,23 @@ function SkyQEngine.sendCommand(ip, command_bytes)
     return false, "Box Unreachable"
 end
 
+-- Verify cached IP is still reachable
+function SkyQEngine.verifyCachedIP(ip)
+    if not ip then return false end
+    local tcp = socket.tcp()
+    tcp:settimeout(0.5)  -- Quick timeout for verification
+    
+    for _, port in ipairs(SkyQEngine.ports) do
+        local success = tcp:connect(ip, port)
+        tcp:close()
+        if success then return true end
+        tcp = socket.tcp()
+        tcp:settimeout(0.5)
+    end
+    tcp:close()
+    return false
+end
+
 function SkyQEngine.scanSubnet()
     local probe = socket.udp()
     probe:setpeername("8.8.8.8", 80)
@@ -59,6 +78,31 @@ function SkyQEngine.scanSubnet()
         if res or err == "already connected" then return ip end
     end
     return nil, "No Sky Q Box found"
+end
+
+-- Find Sky Q box with caching. Pass force=true to ignore cache and do full scan
+function SkyQEngine.findBox(force)
+    -- Try cached IP first if available and not forcing a new scan
+    if not force and SkyQEngine.cached_ip then
+        if SkyQEngine.verifyCachedIP(SkyQEngine.cached_ip) then
+            return SkyQEngine.cached_ip, "cached"
+        end
+        -- Cached IP is dead, clear it
+        SkyQEngine.cached_ip = nil
+    end
+    
+    -- Do full subnet scan
+    local ip, err = SkyQEngine.scanSubnet()
+    if ip then
+        SkyQEngine.cached_ip = ip
+        return ip, "scanned"
+    end
+    return nil, err
+end
+
+-- Clear cached IP manually (useful if user switches boxes)
+function SkyQEngine.clearCache()
+    SkyQEngine.cached_ip = nil
 end
 
 return SkyQEngine
