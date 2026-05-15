@@ -22,7 +22,7 @@ end
 
 function SkyQRemotePlugin:executeAction(command_bytes)
     local success, error_msg = SkyQEngine.sendCommand(self.box_ip, command_bytes)
-    if not success then self:showAlert("Error: " .. error_msg) end
+    if not success then self:showAlert("Error: " .. tostring(error_msg)) end
 end
 
 function SkyQRemotePlugin:runAutodiscovery()
@@ -96,7 +96,8 @@ function SkyQRemoteWindow:init()
             }
         }
     }
-    self = layout
+    -- FIXED: Injects layout into widget hierarchy correctly instead of destroying self instance
+    self:setChild(layout)
 end
 
 function SkyQRemotePlugin:openRemotePanel()
@@ -119,7 +120,7 @@ function SkyQRemotePlugin:configureIP()
                 text = "Save", id = "save", is_default = true,
                 action = function()
                     local fields = input_dialog:getFields()
-                    -- FIX: Access the first input array element directly instead of a text value property
+                    -- FIXED: Accurately checks internal text fields table structure mapping to Lua components
                     local new_ip = fields and fields[1]
                     if new_ip and new_ip ~= "" then
                         self.box_ip = new_ip
@@ -135,7 +136,8 @@ function SkyQRemotePlugin:configureIP()
 end
 
 function SkyQRemotePlugin:addToMainMenu()
-    self.ui.menu:registerWidget("skyq_remote_root", {
+    -- FIXED: Changed self.ui.menu to UIManager.main_menu to comply with the global backend environment
+    UIManager.main_menu:registerWidget("skyq_remote_root", {
         text = "Streaming Media Panel",
         path = {"tools"},
         sub_menu = {
