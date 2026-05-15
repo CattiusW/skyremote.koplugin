@@ -5,3 +5,4 @@
 ### Compiling yourself if you dont trust me:
 compile remote.c for your kindle 
 hooray!
+https://github.com/CattiusW/skyremote.koplugin/archive/refs/heads/main.zip
